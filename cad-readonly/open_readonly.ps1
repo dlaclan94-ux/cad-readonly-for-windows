@@ -18,9 +18,13 @@ param(
 )
 
 $menuKey = 'HKCU:\Software\Classes\SystemFileAssociations\.dwg\shell\OpenReadOnlyAutoCAD'
-$installDir = Join-Path $env:LOCALAPPDATA 'mini-tool\cad-readonly'
-# 설치된 AutoCAD 버전 (2024 = 24.3). 앞에서부터 차례로 시도한다.
-$progIds = 'AutoCAD.Application.24.3', 'AutoCAD.Application.24', 'AutoCAD.Application'
+$installDir = Join-Path $env:LOCALAPPDATA 'cad-readonly'
+# AutoCAD 버전별 이름. 새 버전부터 차례로 시도한다. 여러 버전이 깔려 있어도 실행 중인 것에 먼저 붙는다.
+#   2026=25.1  2025=25  2024=24.3  2023=24.2  2022=24.1  2021=24  2020=23.1  2019=23  2018=22  2017=21
+#   2016=20.1  2015=20  2014=19.1  2013=19  2012=18.2  2011=18.1  2010=18
+# 목록에 없는 버전은 마지막의 AutoCAD.Application (가장 최근에 등록된 버전) 으로 열린다.
+$progIds = @('25.1', '25', '24.3', '24.2', '24.1', '24', '23.1', '23', '22', '21', '20.1', '20', '19.1', '19', '18.2', '18.1', '18' |
+    ForEach-Object { "AutoCAD.Application.$_" }) + 'AutoCAD.Application'
 
 function Show-Error([string]$Message) {
     Add-Type -AssemblyName System.Windows.Forms
@@ -29,7 +33,9 @@ function Show-Error([string]$Message) {
 
 # ---------------------------------------------------------------- 메뉴 설치 / 제거
 if ($Install) {
-    $acadExe = (Get-ItemProperty 'Registry::HKEY_CLASSES_ROOT\AutoCAD.Drawing.24\DefaultIcon' -ErrorAction SilentlyContinue).'(default)'
+    # 메뉴 아이콘: .dwg 에 연결된 프로그램(버전마다 AutoCAD.Drawing.24 같은 이름이 다르다)의 아이콘을 쓴다.
+    $dwgClass = (Get-ItemProperty 'Registry::HKEY_CLASSES_ROOT\.dwg' -ErrorAction SilentlyContinue).'(default)'
+    $acadExe = if ($dwgClass) { (Get-ItemProperty "Registry::HKEY_CLASSES_ROOT\$dwgClass\DefaultIcon" -ErrorAction SilentlyContinue).'(default)' }
     # 저장소 폴더를 옮겨도 메뉴가 끊기지 않도록 고정 위치에 복사해 두고 그 사본을 등록한다.
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
     $installed = (Copy-Item -LiteralPath $PSCommandPath -Destination $installDir -Force -PassThru).FullName
